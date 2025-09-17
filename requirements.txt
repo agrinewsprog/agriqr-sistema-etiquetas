@@ -1,0 +1,20 @@
+# ============================================
+# 📦 DEPENDENCIAS MULTIPLATAFORMA
+# ============================================
+
+# Dependencias principales (todas las plataformas)
+Pillow>=9.0.0
+qrcode[pil]>=7.0.0
+mysql-connector-python>=8.0.0
+PyMySQL>=1.0.0
+
+# Dependencias específicas por plataforma
+# Windows: Brother QL y win32print
+brother_ql; sys_platform == "win32"
+pywin32; sys_platform == "win32"
+
+# macOS: posibles fuentes adicionales si se necesitan
+# (Por ahora usar fuentes del sistema)
+
+# Linux: posibles fuentes adicionales si se necesitan
+# (Por ahora usar fuentes del sistema)

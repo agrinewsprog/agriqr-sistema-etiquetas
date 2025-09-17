@@ -1,0 +1,116 @@
+# 🚫 ARCHIVOS A IGNORAR EN GIT - SISTEMA ETIQUETAS AGRIQR
+
+# =====================================================
+# 🏗️ ARCHIVOS DE BUILD Y COMPILACIÓN
+# =====================================================
+build/
+dist/
+*.exe
+*.app
+*.dmg
+*.pkg
+*.deb
+*.rpm
+
+# =====================================================
+# 🐍 PYTHON ESPECÍFICOS
+# =====================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# =====================================================
+# 🌐 ENTORNOS VIRTUALES
+# =====================================================
+venv/
+venv_build/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# =====================================================
+# 📝 LOGS Y DATOS TEMPORALES
+# =====================================================
+*.log
+*.csv
+log_*.csv
+diagnostico_*.txt
+primer_uso.txt
+brother_config.txt
+configuracion_*.txt
+
+# =====================================================
+# 🔧 ARCHIVOS DE CONFIGURACIÓN LOCAL
+# =====================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# =====================================================
+# 💻 SISTEMA OPERATIVO
+# =====================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Linux
+*~
+.directory
+
+# =====================================================
+# 🛠️ EDITORES E IDEs
+# =====================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# =====================================================
+# 📦 DEPENDENCIAS Y CACHE
+# =====================================================
+node_modules/
+.npm
+.cache/
+
+# =====================================================
+# 🖨️ ARCHIVOS DE DRIVERS (OPCIONALES)
+# =====================================================
+# Comentar las siguientes líneas si quieres incluir los drivers
+QL*.exe
+*.driver
+
+# =====================================================
+# 📊 ARCHIVOS DE ETIQUETAS GENERADAS
+# =====================================================
+Etiquetas_QR/
+etiquetas_guardadas/
