@@ -1,18 +1,10 @@
 # 🏢 AgriQR - Sistema Profesional de Etiquetas QR# 🏢 AGRINEWS - SISTEMA ETIQUETAS QR
 
-
-
 <div align="center">## 📋 Descripción
-
-
 
 ![AgriQR Logo](icono-agriQR.png)Sistema profesional de impresión de etiquetas QR para eventos. Genera etiquetas personalizadas con datos de MySQL y códigos QR para control de acceso.
 
-
-
 **Sistema de control de acceso por eventos con impresión Brother QL**## � Compatibilidad Multiplataforma
-
-
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)- ✅ **Windows 10/11** - Funcionalidad completa con impresión Brother QL
 
@@ -72,7 +64,7 @@ dist/SistemaEtiquetasAgriQR.exe### 🍎 Compilar para macOS
 
 ```
 
-```bash
+````bash
 
 **macOS/Linux:**# Dar permisos al script
 
@@ -84,15 +76,11 @@ pip install -r requirements.txt# Ejecutar el script de build
 
 python main.py./build_macos.sh
 
-``````
-
-
+````
 
 ### Opción 2: Compilar desde Código**Resultado:** `dist/SistemaEtiquetasAgriQR.app`
 
-
-
-```bash**Crear DMG (opcional):**
+````bash**Crear DMG (opcional):**
 
 # Clonar repositorio
 
@@ -100,13 +88,11 @@ git clone https://github.com/usuario/agriqr.git```bash
 
 cd agriqrhdiutil create -volname 'Agrinews QR' -srcfolder dist -ov -format UDZO AgrinewsQR.dmg
 
-```
+````
 
 # Instalar dependencias
 
 pip install -r requirements.txt**Distribución:**
-
-
 
 # Ejecutar aplicación- Arrastra el .app a la carpeta Applications
 
@@ -114,11 +100,7 @@ python main.py- No requiere instalación adicional
 
 ```- Las etiquetas se guardan en `~/Etiquetas_QR/`
 
-
-
 ## 🖨️ Compatibilidad de Impresoras### 🐧 Compilar para Linux
-
-
 
 ### ✅ Impresoras Soportadas```bash
 
@@ -138,11 +120,7 @@ python main.py- No requiere instalación adicional
 
 | Brother QL-820NWB | ✅ | ✅ | ✅ | Red + Bluetooth |**Resultado:** `dist/SistemaEtiquetasAgriQR`
 
-
-
 ### 🔧 Configuración de Impresión**Instalación manual:**
-
-
 
 **Windows:** Usa `win32print` (drivers nativos requeridos)```bash
 
@@ -158,7 +136,7 @@ El sistema conecta con dos bases MySQL:cp dist/SistemaEtiquetasAgriQR ~/bin/
 
 # O instalar sistema-wide
 
-```pythonsudo cp dist/SistemaEtiquetasAgriQR /usr/local/bin/
+````pythonsudo cp dist/SistemaEtiquetasAgriQR /usr/local/bin/
 
 # Base de datos principal - Usuarios```
 
@@ -214,17 +192,15 @@ chmod +x build_macos.sh# 4. El resultado estará en dist/
 
 ./build_macos.sh```
 
-```
+````
 
 **Resultado:** `dist/SistemaEtiquetasAgriQR.app`## 📁 Estructura del Proyecto
-
-
 
 ### 🐧 Linux```
 
 programa_qr/
 
-```bash├── main.py                 # Aplicación principal
+````bash├── main.py                 # Aplicación principal
 
 chmod +x build_linux.sh├── requirements.txt        # Dependencias Python
 
@@ -328,7 +304,7 @@ pip install -r requirements.txt
 
 pip install pyinstaller- **Error permisos:** Ejecutar con `chmod +x`
 
-```
+````
 
 ## 📞 Soporte
 
@@ -336,7 +312,7 @@ pip install pyinstaller- **Error permisos:** Ejecutar con `chmod +x`
 
 Para soporte técnico o reportar errores, contacta al equipo de desarrollo.
 
-```bash
+````bash
 
 # Verificar sintaxis---
 
@@ -368,7 +344,7 @@ pyinstaller ProgramaQR.spec
 
 **❌ Error MySQL:**### 🔒 Seguridad y Validación
 
-```
+````
 
 Fix: Verificar conectividad y credenciales- Conexión segura a bases de datos MySQL remotas
 
@@ -384,7 +360,7 @@ Windows: Instalar drivers Brother oficiales### 🎨 Diseño Corporativo
 
 Mac/Linux: pip install brother_ql
 
-```- Colores oficiales Agrinews: Verde (#39C43C) y Gris Oscuro (#373735)
+````- Colores oficiales Agrinews: Verde (#39C43C) y Gris Oscuro (#373735)
 
 - Iconografía corporativa integrada
 
@@ -436,7 +412,7 @@ Este es un proyecto corporativo privado para **Agrinews**. Para modificaciones c
 
 - **Desarrollador:** Sistema AgriQR### Hardware Mínimo
 
-- **Empresa:** Agrinews  
+- **Empresa:** Agrinews
 
 - **Versión:** 2.0 Multiplataforma- **SO**: Windows 7 o superior
 
@@ -505,7 +481,7 @@ Incluido `diagnostico_sistema.py` para verificar:
 
 ```bash
 python diagnostico_sistema.py
-```
+````
 
 ### Problemas Comunes
 
