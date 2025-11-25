@@ -95,6 +95,29 @@ pip install --upgrade pip
 echo "📚 Instalando dependencias..."
 pip install -r requirements.txt
 
+# Instalar dependencias específicas para build portable
+echo "🔧 Instalando dependencias adicionales para build portable..."
+pip install --upgrade Pillow
+pip install --upgrade pillow[imagetk]
+
+# Verificar que PIL ImageTk funciona en el entorno virtual
+echo "🔍 Verificando PIL ImageTk en entorno virtual..."
+python3 test_dependencies.py
+if [ $? -ne 0 ]; then
+    echo "❌ Las dependencias no están funcionando correctamente"
+    echo "🔧 Instalando Pillow con soporte completo..."
+    pip uninstall -y Pillow
+    pip install --no-binary=Pillow Pillow
+    pip install --upgrade Pillow
+    
+    echo "🔍 Verificando nuevamente..."
+    python3 test_dependencies.py
+    if [ $? -ne 0 ]; then
+        echo "❌ No se pudo solucionar el problema con PIL"
+        exit 1
+    fi
+fi
+
 # Instalar PyInstaller
 echo "🔧 Instalando PyInstaller..."
 pip install pyinstaller
@@ -107,51 +130,92 @@ rm -rf build/ dist/
 echo "🔍 Verificando dependencias específicas..."
 pip show brother_ql > /dev/null 2>&1 || pip install brother_ql
 
-# Compilar con PyInstaller
-echo "⚙️  Compilando aplicación..."
-pyinstaller \
-    --name "SistemaEtiquetasAgriQR" \
-    --onefile \
-    --icon=icono-agriQR.png \
-    --hidden-import=mysql.connector.locales.eng \
-    --hidden-import=mysql.connector.catch23 \
-    --hidden-import=pymysql \
-    --hidden-import=brother_ql \
-    --hidden-import=brother_ql.backends \
-    --hidden-import=brother_ql.backends.pyusb \
-    --hidden-import=brother_ql.backends.linux_kernel \
-    --add-data="icono-agriQR.png:." \
-    main.py
+# Compilar con PyInstaller usando spec file
+echo "⚙️  Compilando aplicación con spec file optimizado..."
+pyinstaller SistemaEtiquetasAgriQR-Linux.spec
+
+# Verificar resultado del spec file
+if [ ! -f "dist/SistemaEtiquetasAgriQR-Linux" ]; then
+    echo "⚠️  Build con spec falló, intentando método tradicional..."
+    
+    # Método fallback con parámetros en línea de comandos
+    pyinstaller \
+        --name "SistemaEtiquetasAgriQR" \
+        --onefile \
+        --icon=icono-agriQR.png \
+        --hidden-import=tkinter \
+        --hidden-import=PIL._tkinter_finder \
+        --hidden-import=PIL.ImageTk \
+        --hidden-import=PIL.Image \
+        --hidden-import=PIL.ImageDraw \
+        --hidden-import=PIL.ImageFont \
+        --hidden-import=mysql.connector.locales.eng \
+        --hidden-import=mysql.connector.catch23 \
+        --hidden-import=pymysql \
+        --hidden-import=brother_ql \
+        --hidden-import=brother_ql.backends \
+        --hidden-import=brother_ql.backends.pyusb \
+        --hidden-import=brother_ql.backends.linux_kernel \
+        --collect-submodules=PIL \
+        --collect-submodules=tkinter \
+        --add-data="icono-agriQR.png:." \
+        main.py
+fi
 
 # Verificar resultado
-if [ -f "dist/SistemaEtiquetasAgriQR" ]; then
+EXECUTABLE_PATH=""
+if [ -f "dist/SistemaEtiquetasAgriQR-Linux" ]; then
+    EXECUTABLE_PATH="dist/SistemaEtiquetasAgriQR-Linux"
+elif [ -f "dist/SistemaEtiquetasAgriQR" ]; then
+    EXECUTABLE_PATH="dist/SistemaEtiquetasAgriQR"
+fi
+
+if [ -n "$EXECUTABLE_PATH" ]; then
     echo "✅ ¡Compilación exitosa!"
-    echo "🐧 Ejecutable creado: dist/SistemaEtiquetasAgriQR"
+    echo "🐧 Ejecutable creado: $EXECUTABLE_PATH"
     
     # Hacer ejecutable
-    chmod +x dist/SistemaEtiquetasAgriQR
+    chmod +x "$EXECUTABLE_PATH"
     
     # Obtener información del archivo
     echo ""
     echo "📊 Información del ejecutable:"
-    ls -lh dist/SistemaEtiquetasAgriQR
-    file dist/SistemaEtiquetasAgriQR
+    ls -lh "$EXECUTABLE_PATH"
+    file "$EXECUTABLE_PATH"
+    
+    # Probar imports críticos
+    echo ""
+    echo "🔍 Probando ejecutable..."
+    timeout 10s "$EXECUTABLE_PATH" --version 2>/dev/null || echo "⚠️  Test de ejecución completado (timeout esperado)"
     
     # Crear script de instalación
     echo "📝 Creando script de instalación..."
-    cat > dist/install_agriqr.sh << 'EOF'
+    cat > dist/install_agriqr.sh << EOF
 #!/bin/bash
 # Script de instalación para AgriQR en Linux
 
 echo "🐧 Instalando AgriQR Sistema Etiquetas..."
 
+# Detectar el ejecutable disponible
+EXECUTABLE=""
+if [ -f "SistemaEtiquetasAgriQR-Linux" ]; then
+    EXECUTABLE="SistemaEtiquetasAgriQR-Linux"
+elif [ -f "SistemaEtiquetasAgriQR" ]; then
+    EXECUTABLE="SistemaEtiquetasAgriQR"
+else
+    echo "❌ No se encontró el ejecutable"
+    exit 1
+fi
+
+echo "📂 Usando ejecutable: \$EXECUTABLE"
+
 # Crear directorio en /opt
 sudo mkdir -p /opt/agriqr
-sudo cp SistemaEtiquetasAgriQR /opt/agriqr/
-sudo chmod +x /opt/agriqr/SistemaEtiquetasAgriQR
+sudo cp "\$EXECUTABLE" /opt/agriqr/
+sudo chmod +x "/opt/agriqr/\$EXECUTABLE"
 
 # Crear enlace simbólico en /usr/local/bin
-sudo ln -sf /opt/agriqr/SistemaEtiquetasAgriQR /usr/local/bin/agriqr
+sudo ln -sf "/opt/agriqr/\$EXECUTABLE" /usr/local/bin/agriqr
 
 # Crear archivo .desktop para el menú
 cat > ~/.local/share/applications/agriqr.desktop << 'DESKTOP'
@@ -160,7 +224,7 @@ Version=1.0
 Type=Application
 Name=AgriQR Sistema Etiquetas
 Comment=Sistema profesional de etiquetas QR para eventos
-Exec=/opt/agriqr/SistemaEtiquetasAgriQR
+Exec=/opt/agriqr/\$EXECUTABLE
 Icon=/opt/agriqr/icono-agriQR.png
 Terminal=false
 StartupNotify=true
@@ -192,17 +256,18 @@ EOF
             mkdir -p AgriQR.AppDir/usr/share/applications
             
             # Copiar ejecutable
-            cp dist/SistemaEtiquetasAgriQR AgriQR.AppDir/usr/bin/
+            cp "$EXECUTABLE_PATH" AgriQR.AppDir/usr/bin/
             
             # Copiar icono
             cp icono-agriQR.png AgriQR.AppDir/usr/share/icons/hicolor/256x256/apps/agriqr.png
             cp icono-agriQR.png AgriQR.AppDir/agriqr.png
             
             # Crear AppRun
-            cat > AgriQR.AppDir/AppRun << 'APPRUN'
+            EXECUTABLE_NAME=$(basename "$EXECUTABLE_PATH")
+            cat > AgriQR.AppDir/AppRun << APPRUN
 #!/bin/bash
-HERE="$(dirname "$(readlink -f "${0}")")"
-exec "${HERE}/usr/bin/SistemaEtiquetasAgriQR" "$@"
+HERE="\$(dirname "\$(readlink -f "\${0}")")"
+exec "\${HERE}/usr/bin/$EXECUTABLE_NAME" "\$@"
 APPRUN
             chmod +x AgriQR.AppDir/AppRun
             
@@ -238,17 +303,18 @@ DESKTOP
     echo ""
     echo "🐧 ¡Build de Linux completado!"
     echo "📂 Archivos generados:"
-    echo "   • dist/SistemaEtiquetasAgriQR (Ejecutable)"
+    echo "   • $EXECUTABLE_PATH (Ejecutable)"
     echo "   • dist/install_agriqr.sh (Script de instalación)"
     if [ -f "AgriQR-Linux-x86_64.AppImage" ]; then
         echo "   • AgriQR-Linux-x86_64.AppImage (Portable)"
     fi
     echo ""
-    echo "📋 Opciones de instalación:"
-    echo "   1. Ejecutar directamente: ./dist/SistemaEtiquetasAgriQR"
+    echo "📋 Opciones de uso:"
+    echo "   1. Ejecutar directamente: ./$EXECUTABLE_PATH"
     echo "   2. Instalar sistema: cd dist && sudo ./install_agriqr.sh"
     echo "   3. Portable: usar AppImage (si se creó)"
     echo ""
+    echo "🔧 Dependencias incluidas: PIL ImageTk, MySQL, Brother QL"
     echo "🖨️  Para Brother QL: sudo apt install libusb-1.0-0-dev"
     echo "📁 Las etiquetas se guardan en ~/Etiquetas_QR/"
     

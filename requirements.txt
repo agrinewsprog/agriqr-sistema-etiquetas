@@ -16,5 +16,16 @@ pywin32; sys_platform == "win32"
 # macOS: posibles fuentes adicionales si se necesitan
 # (Por ahora usar fuentes del sistema)
 
-# Linux: posibles fuentes adicionales si se necesitan
-# (Por ahora usar fuentes del sistema)
+# Linux: Brother QL para impresión directa (opcional)
+brother_ql; sys_platform == "linux"
+
+# ============================================
+# 📋 INSTRUCCIONES DE INSTALACIÓN PARA LINUX
+# ============================================
+# Para instalar correctamente en Linux, ejecute primero:
+# sudo apt-get update
+# sudo apt-get install -y python3-tk python3-dev python3-pil.imagetk
+# sudo apt-get install -y python3-pil libjpeg-dev zlib1g-dev libfreetype-dev
+# 
+# Luego instale las dependencias de Python:
+# pip3 install -r requirements.txt

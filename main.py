@@ -664,33 +664,162 @@ def imprimir_etiqueta(img):
         return guardar_etiqueta_archivo(img)
 
 def imprimir_etiqueta_brother_ql(img):
-    """Imprime usando brother_ql en Mac/Linux"""
+    """Imprime usando diferentes estrategias para Linux/Mac"""
     try:
-        print("🖨️ Imprimiendo con brother_ql...")
+        print("🖨️ Intentando impresión en Linux...")
         
-        # Intentar usar brother_ql
+        # Estrategia 1: CUPS (Common Unix Printing System) - más confiable en Linux
+        if imprimir_con_cups(img):
+            return True
+        
+        # Estrategia 2: lp command directo
+        if imprimir_con_lp(img):
+            return True
+        
+        # Estrategia 3: brother_ql como último recurso (con manejo de errores)
+        try:
+            print("🔄 Intentando con brother_ql (puede fallar)...")
+            return imprimir_con_brother_ql_legacy(img)
+        except Exception as e:
+            print(f"brother_ql falló como esperado: {e}")
+            
+        # Si todo falla, guardar archivo (ya es lo que hacía antes)
+        raise Exception("Todas las estrategias de impresión fallaron. Guardando como archivo.")
+        
+    except Exception as e:
+        raise Exception(f"Error en impresión Linux: {str(e)}")
+
+def imprimir_con_cups(img):
+    """Intenta imprimir usando CUPS (sistema de impresión estándar Linux)"""
+    try:
+        import subprocess
+        import tempfile
+        import os
+        
+        # Crear archivo temporal
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+            
+        # Guardar imagen en archivo temporal
+        img.save(tmp_path, "PNG", dpi=(300, 300))
+        
+        # Buscar impresoras Brother QL disponibles
+        try:
+            result = subprocess.run(['lpstat', '-p'], capture_output=True, text=True, timeout=5)
+            impresoras_disponibles = result.stdout
+            
+            # Buscar impresoras Brother
+            impresoras_brother = []
+            for linea in impresoras_disponibles.split('\n'):
+                if 'Brother' in linea and ('QL-' in linea or 'ql-' in linea):
+                    # Extraer nombre de impresora
+                    partes = linea.split()
+                    if len(partes) >= 2:
+                        impresoras_brother.append(partes[1])
+            
+            if not impresoras_brother:
+                print("🔍 No se encontraron impresoras Brother QL en CUPS")
+                return False
+            
+            # Intentar imprimir en la primera impresora Brother encontrada
+            impresora = impresoras_brother[0]
+            print(f"🖨️ Imprimiendo en: {impresora}")
+            
+            # Comando lp con parámetros específicos para etiquetas
+            cmd = [
+                'lp',
+                '-d', impresora,
+                '-o', 'media=Custom.62x29mm',  # Tamaño de etiqueta Brother
+                '-o', 'fit-to-page',
+                '-o', 'orientation-requested=3',  # Paisaje
+                tmp_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            # Limpiar archivo temporal
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+            
+            if result.returncode == 0:
+                print("✅ ¡Impresión enviada exitosamente con CUPS!")
+                return True
+            else:
+                print(f"❌ Error CUPS: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print("⏱️ Timeout ejecutando comandos CUPS")
+            return False
+        except Exception as e:
+            print(f"❌ Error ejecutando CUPS: {e}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error configurando CUPS: {e}")
+        return False
+
+def imprimir_con_lp(img):
+    """Intenta imprimir usando comando lp directo"""
+    try:
+        import subprocess
+        import tempfile
+        import os
+        
+        # Crear archivo temporal
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+            
+        # Guardar imagen optimizada para impresión
+        img.save(tmp_path, "PNG", dpi=(300, 300), optimize=True)
+        
+        # Intentar imprimir con lp genérico
+        try:
+            cmd = ['lp', '-o', 'fit-to-page', tmp_path]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            # Limpiar archivo temporal
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+            
+            if result.returncode == 0:
+                print("✅ ¡Impresión enviada exitosamente con lp!")
+                return True
+            else:
+                print(f"❌ Error lp: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print("⏱️ Timeout ejecutando lp")
+            return False
+        except Exception as e:
+            print(f"❌ Error ejecutando lp: {e}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error configurando lp: {e}")
+        return False
+
+def imprimir_con_brother_ql_legacy(img):
+    """Método brother_ql original (puede fallar con Pillow nuevo)"""
+    try:
         from brother_ql import BrotherQLRaster, create_label
         from brother_ql.backends import backend_factory, guess_backend
         
         # Detectar impresora Brother QL
         backend = guess_backend("usb://")
         if not backend:
-            # Intentar con otros backends
-            for backend_name in ['pyusb', 'linux_kernel']:
-                try:
-                    backend = backend_factory(backend_name)
-                    break
-                except:
-                    continue
-        
-        if not backend:
-            raise Exception("No se encontró impresora Brother QL conectada")
+            return False
         
         # Crear raster
-        qlr = BrotherQLRaster('QL-700')  # o QL-600, QL-800
+        qlr = BrotherQLRaster('QL-700')
         
         # Convertir imagen a formato Brother QL
-        instructions = create_label(qlr, img, '62')  # etiqueta de 62mm
+        instructions = create_label(qlr, img, '62')
         
         # Enviar a impresora
         backend.write(instructions)
@@ -699,10 +828,9 @@ def imprimir_etiqueta_brother_ql(img):
         print("✅ ¡Impresión enviada exitosamente con brother_ql!")
         return True
         
-    except ImportError:
-        raise Exception("brother_ql no instalado. Instalar con: pip install brother_ql")
     except Exception as e:
-        raise Exception(f"Error imprimiendo con brother_ql: {str(e)}")
+        print(f"brother_ql legacy falló: {e}")
+        return False
 
 def imprimir_etiqueta_windows(img):
     """Imprime usando win32print (método Windows nativo más confiable)."""
@@ -782,13 +910,49 @@ def guardar_etiqueta_archivo(img):
         filename = f"etiqueta_qr_{timestamp}.png"
         filepath = os.path.join(etiquetas_dir, filename)
         
-        # Guardar imagen
-        img.save(filepath, "PNG", dpi=(300, 300))
+        # Guardar imagen con alta calidad
+        img.save(filepath, "PNG", dpi=(300, 300), optimize=True)
         
         print(f"✅ Etiqueta 'impresa' (guardada) en: {filepath}")
         
-        # EN MODO AUTO: NO mostrar popup, solo log silencioso
-        # EN MODO MANUAL: Mostrar popup informativo
+        # Crear también una versión PDF si es posible
+        try:
+            pdf_path = filepath.replace('.png', '.pdf')
+            img_rgb = img.convert('RGB')
+            img_rgb.save(pdf_path, "PDF", dpi=(300, 300))
+            print(f"📄 También guardada como PDF: {pdf_path}")
+        except Exception as pdf_error:
+            print(f"⚠️ No se pudo crear PDF: {pdf_error}")
+        
+        # Crear archivo de instrucciones si no existe
+        instrucciones_path = os.path.join(etiquetas_dir, "INSTRUCCIONES_IMPRESION.txt")
+        if not os.path.exists(instrucciones_path):
+            with open(instrucciones_path, 'w', encoding='utf-8') as f:
+                f.write("""🖨️ INSTRUCCIONES PARA IMPRIMIR ETIQUETAS EN LINUX
+
+Las etiquetas se guardan aquí porque la impresión directa en Linux puede requerir configuración adicional.
+
+PARA IMPRIMIR:
+1. Conecta tu impresora Brother QL (QL-600, QL-700, QL-800)
+2. Instala el driver oficial de Brother si no lo has hecho
+3. Abre el archivo PNG o PDF con el visor de imágenes
+4. Imprime con estas configuraciones:
+   - Tamaño: 62mm x 29mm (o tamaño personalizado)
+   - Orientación: Horizontal (paisaje)
+   - Ajustar a página: SÍ
+   - Sin márgenes
+
+CONFIGURACIÓN CUPS (OPCIONAL):
+Para impresión automática, configura tu impresora en CUPS:
+1. Abre http://localhost:631 en tu navegador
+2. Añade tu impresora Brother QL
+3. Configura el tamaño de papel a 62x29mm
+
+ALTERNATIVA:
+Usa el comando: lp -d NombreImpresora -o fit-to-page archivo.png
+""")
+            print(f"📝 Instrucciones creadas en: {instrucciones_path}")
+        
         return filepath
         
     except Exception as e:
