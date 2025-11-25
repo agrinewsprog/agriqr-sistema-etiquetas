@@ -646,13 +646,13 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
 
 
 
-def imprimir_etiqueta(img):
+def imprimir_etiqueta(img, sistema=None):
     """Imprime en Brother QL en TODAS las plataformas"""
     try:
         # Intentar impresión Brother QL en cualquier sistema operativo
         if IS_WINDOWS:
-            # Windows: usar win32print
-            return imprimir_etiqueta_windows(img)
+            # Windows: usar win32print (pasar sistema para usar impresora seleccionada)
+            return imprimir_etiqueta_windows(img, sistema)
         else:
             # Mac/Linux: usar brother_ql directamente
             return imprimir_etiqueta_brother_ql(img)
@@ -832,7 +832,7 @@ def imprimir_con_brother_ql_legacy(img):
         print(f"brother_ql legacy falló: {e}")
         return False
 
-def imprimir_etiqueta_windows(img):
+def imprimir_etiqueta_windows(img, sistema=None):
     """Imprime usando win32print (método Windows nativo más confiable)."""
     try:
         import win32print
@@ -840,21 +840,61 @@ def imprimir_etiqueta_windows(img):
         from PIL import ImageWin
         import tempfile
         import os
+        import time
         
-        # Buscar impresoras Brother instaladas
-        impresoras = []
-        for printer_info in win32print.EnumPrinters(2):
-            nombre = printer_info[2]
-            if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
-                impresoras.append(nombre)
+        # VERIFICAR SI HAY UNA IMPRESORA SELECCIONADA MANUALMENTE
+        impresora_manual = None
+        if sistema and hasattr(sistema, 'impresora_seleccionada') and sistema.impresora_seleccionada:
+            impresora_manual = sistema.impresora_seleccionada
+            print(f"🎯 Usando impresora seleccionada manualmente: {impresora_manual}")
         
-        if not impresoras:
-            raise Exception("No se encontró ninguna impresora Brother QL instalada en Windows. Instala el driver oficial.")
+        # Si no hay selección manual, buscar automáticamente
+        if not impresora_manual:
+            print("🔄 Actualizando lista de impresoras...")
+            time.sleep(0.1)  # Pequeña pausa para asegurar sincronización
+            
+            # Buscar impresoras Brother instaladas DINÁMICAMENTE
+            impresoras = []
+            try:
+                # Usar flag PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS (6)
+                # para forzar actualización completa
+                for printer_info in win32print.EnumPrinters(6):
+                    nombre = printer_info[2]
+                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
+                        impresoras.append(nombre)
+                        print(f"   📌 Encontrada: {nombre}")
+            except Exception as e:
+                print(f"⚠️ Error enumerando impresoras con flag 6, usando flag 2: {e}")
+                # Fallback al método original
+                for printer_info in win32print.EnumPrinters(2):
+                    nombre = printer_info[2]
+                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
+                        impresoras.append(nombre)
+            
+            if not impresoras:
+                raise Exception("No se encontró ninguna impresora Brother QL instalada en Windows. Instala el driver oficial.")
+            
+            # Si hay múltiples impresoras, usar la predeterminada del sistema o la primera
+            nombre_impresora = None
+            
+            # Intentar obtener la impresora predeterminada del sistema
+            try:
+                impresora_predeterminada = win32print.GetDefaultPrinter()
+                if any(imp in impresora_predeterminada for imp in impresoras):
+                    nombre_impresora = impresora_predeterminada
+                    print(f"✅ Usando impresora predeterminada: {nombre_impresora}")
+            except:
+                pass
+            
+            # Si no hay predeterminada o no es Brother, usar la primera encontrada
+            if not nombre_impresora:
+                nombre_impresora = impresoras[0]
+                print(f"✅ Usando primera impresora Brother encontrada: {nombre_impresora}")
+        else:
+            # Usar la impresora seleccionada manualmente
+            nombre_impresora = impresora_manual
         
-        nombre_impresora = impresoras[0]
-        print(f"Usando impresora: {nombre_impresora}")
-        
-        # Crear contexto de impresión
+        # Crear contexto de impresión NUEVO cada vez
         hDC = win32ui.CreateDC()
         hDC.CreatePrinterDC(nombre_impresora)
         
@@ -1409,16 +1449,17 @@ class SistemaEtiquetasProfesional(tk.Tk):
         self.preview_lbl.pack(expand=True)
         
         # ===============================================
-        # 🎨 PANEL DE INDICADORES DE PULSERAS
+        # 🎨 PANEL DE INDICADORES DE PULSERAS (SOLO LPN Y PORCIFORUM)
         # ===============================================
         
         # Container para los indicadores de pulseras - MÁS COMPACTO
-        pulseras_container = tk.Frame(main_container, bg=ColoresTema.WHITE, width=180)
-        pulseras_container.pack(side='left', fill='y', padx=(10, 0))
-        pulseras_container.pack_propagate(False)  # Mantener ancho fijo
+        # GUARDAMOS LA REFERENCIA para poder mostrar/ocultar según el evento
+        self.pulseras_container = tk.Frame(main_container, bg=ColoresTema.WHITE, width=180)
+        # NO lo empaquetamos aquí, se mostrará solo para eventos LPN y PorciForum
+        self.pulseras_container.pack_propagate(False)  # Mantener ancho fijo
         
         # Título del panel de pulseras
-        titulo_pulseras = tk.Label(pulseras_container,
+        titulo_pulseras = tk.Label(self.pulseras_container,
                                   text="🎯 PULSERAS A ENTREGAR",
                                   font=('Segoe UI', 10, 'bold'),
                                   bg=ColoresTema.WHITE,
@@ -1426,7 +1467,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         titulo_pulseras.pack(pady=(0, 10))
         
         # Indicador PULSERA NARANJA (LPN Congress) - MÁS COMPACTO
-        self.pulsera_naranja = tk.Label(pulseras_container,
+        self.pulsera_naranja = tk.Label(self.pulseras_container,
                                        text="🟠 NARANJA\n(LPN Congress)",
                                        font=('Segoe UI', 8, 'bold'),
                                        bg='#fd7e14',
@@ -1438,7 +1479,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         self.pulsera_naranja.pack(pady=3, fill='x')
         
         # Indicador PULSERA AZUL (PorciForum Congress) - MÁS COMPACTO
-        self.pulsera_azul = tk.Label(pulseras_container,
+        self.pulsera_azul = tk.Label(self.pulseras_container,
                                     text="🔵 AZUL\n(PorciForum Congress)",
                                     font=('Segoe UI', 8, 'bold'),
                                     bg='#007bff',
@@ -1450,7 +1491,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         self.pulsera_azul.pack(pady=3, fill='x')
         
         # Indicador PULSERA NEGRA (EXPO) - MÁS COMPACTO
-        self.pulsera_negra = tk.Label(pulseras_container,
+        self.pulsera_negra = tk.Label(self.pulseras_container,
                                     text="⚫ NEGRA\n(EXPO)",
                                     font=('Segoe UI', 8, 'bold'),
                                     bg='#2C2C2C',
@@ -1462,7 +1503,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         self.pulsera_negra.pack(pady=3, fill='x')
         
         # Indicador de pulsera activa (inicialmente oculto)
-        self.indicador_activo = tk.Label(pulseras_container,
+        self.indicador_activo = tk.Label(self.pulseras_container,
                                         text="👆 ENTREGAR ESTA",
                                         font=('Segoe UI', 8, 'bold'),
                                         bg='#32CD32',
@@ -1474,7 +1515,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         # No empaquetamos el indicador activo inicialmente
         
         # Separador para mochilas
-        separador_mochila = tk.Label(pulseras_container,
+        separador_mochila = tk.Label(self.pulseras_container,
                                     text="━━━━━━━━━━━━━━━━━━━━",
                                     font=('Segoe UI', 6),
                                     bg=ColoresTema.WHITE,
@@ -1482,7 +1523,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         separador_mochila.pack(pady=(10, 5))
         
         # Título del panel de mochilas
-        titulo_mochilas = tk.Label(pulseras_container,
+        titulo_mochilas = tk.Label(self.pulseras_container,
                                   text="🎒 ESTADO DE MOCHILA",
                                   font=('Segoe UI', 10, 'bold'),
                                   bg=ColoresTema.WHITE,
@@ -1490,7 +1531,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         titulo_mochilas.pack(pady=(0, 10))
         
         # Indicador de mochila SÍ
-        self.mochila_si = tk.Label(pulseras_container,
+        self.mochila_si = tk.Label(self.pulseras_container,
                                   text="✅ SÍ MOCHILA\n(Entregar kit completo)",
                                   font=('Segoe UI', 8, 'bold'),
                                   bg='#28a745',
@@ -1502,7 +1543,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         self.mochila_si.pack(pady=3, fill='x')
         
         # Indicador de mochila NO
-        self.mochila_no = tk.Label(pulseras_container,
+        self.mochila_no = tk.Label(self.pulseras_container,
                                   text="❌ NO MOCHILA\n(Solo credencial y pulsera)",
                                   font=('Segoe UI', 8, 'bold'),
                                   bg='#dc3545',
@@ -1514,7 +1555,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
         self.mochila_no.pack(pady=3, fill='x')
         
         # Indicador de mochila activa (inicialmente oculto)
-        self.indicador_mochila_activo = tk.Label(pulseras_container,
+        self.indicador_mochila_activo = tk.Label(self.pulseras_container,
                                                 text="👆 ESTADO MOCHILA",
                                                 font=('Segoe UI', 8, 'bold'),
                                                 bg='#ffc107',
@@ -1535,6 +1576,16 @@ class SistemaEtiquetasProfesional(tk.Tk):
                                    command=self.on_print)
         self.btn_print.pack(side='left', padx=(0, 10))
         self.btn_print['state'] = 'disabled'
+        
+        # Botón para seleccionar impresora (solo Windows)
+        if IS_WINDOWS:
+            self.btn_seleccionar_impresora = ttk.Button(control_frame,
+                                                       text="🖨️ Seleccionar Impresora",
+                                                       command=self.seleccionar_impresora)
+            self.btn_seleccionar_impresora.pack(side='left', padx=(0, 10))
+            
+            # Variable para almacenar la impresora seleccionada
+            self.impresora_seleccionada = None
         
         # Información adicional
         info_frame = ttk.Frame(control_frame)
@@ -4012,16 +4063,15 @@ class SistemaEtiquetasProfesional(tk.Tk):
             # Ocultar indicadores activos si no hay datos
             self.indicador_activo.pack_forget()
             self.indicador_mochila_activo.pack_forget()
+            # Ocultar el panel completo si no hay datos
+            self.pulseras_container.pack_forget()
             return
         
         # Obtener datos
         tipo_entrada = self.datos_actual.get('Entrada') or self.datos_actual.get('entrada', '')
         pirata = self.datos_actual.get('pirata', 0)  # Campo mochila: 1=no mochila, 0=sí mochila
         
-        # Debug: mostrar información del usuario actual
-        id_usuario = self.datos_actual.get('idUsuario', 'DESCONOCIDO')
-        nombre = self.datos_actual.get('Nombrecompleto', 'DESCONOCIDO')
-        
+        # Obtener nombre del evento
         if self.modo_csv:
             evento_id = self.datos_actual.get('Evento', '0')
             nombre_evento = self.obtener_nombre_evento_csv(evento_id)
@@ -4031,23 +4081,30 @@ class SistemaEtiquetasProfesional(tk.Tk):
         
         # Normalizar para comparación
         evento_lower = nombre_evento.lower() if nombre_evento else ''
+        
+        # ⭐ VERIFICAR SI ES UN EVENTO CON PULSERAS (SOLO LPN Y PORCIFORUM)
+        es_evento_con_pulseras = ('lpn' in evento_lower or 
+                                  'porciforum' in evento_lower or 
+                                  'porci forum' in evento_lower)
+        
+        if not es_evento_con_pulseras:
+            # ❌ EVENTO SIN PULSERAS: Ocultar todo el panel
+            self.pulseras_container.pack_forget()
+            print(f"ℹ️ Evento '{nombre_evento}' sin sistema de pulseras - Panel oculto")
+            return
+        
+        # ✅ EVENTO CON PULSERAS: Mostrar el panel
+        # Verificar si ya está visible, si no, mostrarlo
+        if not self.pulseras_container.winfo_ismapped():
+            self.pulseras_container.pack(side='left', fill='y', padx=(10, 0))
+            print(f"✅ Evento '{nombre_evento}' con sistema de pulseras - Panel visible")
+        
+        # Continuar con la lógica normal de actualización de indicadores
         tipo_lower = tipo_entrada.lower() if tipo_entrada else ''
         
         print("=" * 80)
-        
-        if self.modo_csv:
-            evento_id = self.datos_actual.get('Evento', '0')
-            nombre_evento = self.obtener_nombre_evento_csv(evento_id)
-        else:
-            evento_id = self.datos_actual.get('Evento', 0)
-            nombre_evento = self.obtener_nombre_evento_mysql(evento_id)
-        
-        # Normalizar para comparación
-        evento_lower = nombre_evento.lower() if nombre_evento else ''
-        tipo_lower = tipo_entrada.lower() if tipo_entrada else ''
-        
-        # Debug: mostrar valores para diagnóstico
         print(f"🔍 DEBUG PULSERAS:")
+        print(f"   - Usuario: {self.datos_actual.get('Nombrecompleto', 'N/A')}")
         print(f"   - Evento (original): '{nombre_evento}'")
         print(f"   - Evento (lower): '{evento_lower}'")
         print(f"   - Tipo entrada (original): '{tipo_entrada}'")
@@ -4187,6 +4244,117 @@ class SistemaEtiquetasProfesional(tk.Tk):
         print(f"   - Pulsera activa: {pulsera_activa}")
         print(f"   - Mochila activa: {mochila_activa}")
 
+    def seleccionar_impresora(self):
+        """Permite seleccionar manualmente la impresora Brother a usar."""
+        try:
+            import win32print
+            
+            # Actualizar lista de impresoras disponibles
+            print("🔄 Escaneando impresoras disponibles...")
+            impresoras_brother = []
+            
+            try:
+                # Usar flag 6 para forzar actualización completa
+                for printer_info in win32print.EnumPrinters(6):
+                    nombre = printer_info[2]
+                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
+                        impresoras_brother.append(nombre)
+            except:
+                # Fallback
+                for printer_info in win32print.EnumPrinters(2):
+                    nombre = printer_info[2]
+                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
+                        impresoras_brother.append(nombre)
+            
+            if not impresoras_brother:
+                messagebox.showwarning("Sin impresoras", 
+                    "No se encontraron impresoras Brother QL instaladas.\n\n"
+                    "Asegúrate de que el driver de la impresora esté instalado correctamente.")
+                return
+            
+            # Crear ventana de selección
+            ventana = tk.Toplevel(self)
+            ventana.title("🖨️ Seleccionar Impresora Brother QL")
+            ventana.geometry("500x400")
+            ventana.transient(self)
+            ventana.grab_set()
+            
+            # Centrar ventana
+            ventana.geometry("+%d+%d" % (self.winfo_rootx() + 100, self.winfo_rooty() + 100))
+            
+            # Frame principal
+            main_frame = ttk.Frame(ventana, padding=20)
+            main_frame.pack(fill='both', expand=True)
+            
+            # Título
+            titulo = ttk.Label(main_frame,
+                              text="🖨️ Seleccione la impresora a usar",
+                              font=('Segoe UI', 14, 'bold'))
+            titulo.pack(pady=(0, 20))
+            
+            # Info
+            info_text = f"Se encontraron {len(impresoras_brother)} impresora(s) Brother QL:\n"
+            info_label = ttk.Label(main_frame, text=info_text, font=('Segoe UI', 10))
+            info_label.pack(pady=(0, 10))
+            
+            # Lista de impresoras con radio buttons
+            seleccion_var = tk.StringVar()
+            
+            # Marcar la impresora actual si existe
+            if hasattr(self, 'impresora_seleccionada') and self.impresora_seleccionada:
+                seleccion_var.set(self.impresora_seleccionada)
+            else:
+                # Por defecto, seleccionar la primera
+                seleccion_var.set(impresoras_brother[0])
+            
+            # Frame con scroll para la lista
+            lista_frame = ttk.LabelFrame(main_frame, text="Impresoras disponibles", padding=10)
+            lista_frame.pack(fill='both', expand=True, pady=(0, 15))
+            
+            for impresora in impresoras_brother:
+                # Verificar si es la predeterminada del sistema
+                es_predeterminada = False
+                try:
+                    if impresora == win32print.GetDefaultPrinter():
+                        es_predeterminada = True
+                except:
+                    pass
+                
+                texto = impresora
+                if es_predeterminada:
+                    texto += " ⭐ (Predeterminada del sistema)"
+                
+                radio = ttk.Radiobutton(lista_frame, 
+                                       text=texto, 
+                                       variable=seleccion_var, 
+                                       value=impresora)
+                radio.pack(anchor='w', pady=5)
+            
+            # Botones
+            botones_frame = ttk.Frame(main_frame)
+            botones_frame.pack(fill='x')
+            
+            def confirmar():
+                self.impresora_seleccionada = seleccion_var.get()
+                print(f"✅ Impresora seleccionada: {self.impresora_seleccionada}")
+                self.log_message(f"Impresora cambiada a: {self.impresora_seleccionada}", "SUCCESS")
+                messagebox.showinfo("Impresora Actualizada", 
+                    f"✅ Impresora configurada correctamente:\n\n{self.impresora_seleccionada}\n\n"
+                    "Las próximas etiquetas se imprimirán en esta impresora.")
+                ventana.destroy()
+            
+            def refrescar():
+                # Cerrar y volver a abrir para refrescar la lista
+                ventana.destroy()
+                self.seleccionar_impresora()
+            
+            ttk.Button(botones_frame, text="🔄 Refrescar Lista", command=refrescar).pack(side='left', padx=(0, 10))
+            ttk.Button(botones_frame, text="✅ Confirmar", command=confirmar).pack(side='left', padx=(0, 10))
+            ttk.Button(botones_frame, text="❌ Cancelar", command=ventana.destroy).pack(side='left')
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al listar impresoras:\n{str(e)}")
+
     def on_print(self):
         self.imprimir_y_log()
         self.btn_print['state'] = 'disabled'
@@ -4200,7 +4368,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
             else:
                 self.log_message(f"Error al registrar comida para usuario {id_usuario}", "ERROR")
         
-        imprimir_etiqueta(self.img_etiqueta)
+        imprimir_etiqueta(self.img_etiqueta, sistema=self)
         log_impresion(self.datos_actual)
         self.add_log(self.datos_actual)
 
@@ -4321,7 +4489,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
                     print(f"⚠️ Error al marcar comida en MySQL: {e}")
             
             # Imprimir etiqueta
-            imprimir_etiqueta(self.img_etiqueta)
+            imprimir_etiqueta(self.img_etiqueta, sistema=self)
             
             # Intentar guardar log con manejo de errores
             try:
