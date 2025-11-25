@@ -29,11 +29,26 @@ else:  # Linux
     console_mode = False
     additional_imports = []
 
+# Archivos de datos necesarios
+data_files = []
+
+# Incluir archivo de eventos CSV (importante para modo offline)
+if os.path.exists('Eventos_Etiquetas.csv'):
+    data_files.append(('Eventos_Etiquetas.csv', '.'))
+
+# Incluir configurar_impresora.py si existe
+if os.path.exists('configurar_impresora.py'):
+    data_files.append(('configurar_impresora.py', '.'))
+
+# Incluir icono si existe
+if os.path.exists(icon_file):
+    data_files.append((icon_file, '.'))
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=data_files,
     hiddenimports=[
         'mysql.connector',
         'mysql.connector.locales',

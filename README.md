@@ -1,18 +1,10 @@
 # 🏢 AgriQR - Sistema Profesional de Etiquetas QR# 🏢 AgriQR - Sistema Profesional de Etiquetas QR# 🏢 AGRINEWS - SISTEMA ETIQUETAS QR
 
-
-
 <div align="center"><div align="center">## 📋 Descripción
-
-
 
 ![AgriQR Logo](icono-agriQR.png)![AgriQR Logo](icono-agriQR.png)Sistema profesional de impresión de etiquetas QR para eventos. Genera etiquetas personalizadas con datos de MySQL y códigos QR para control de acceso.
 
-
-
-**Sistema de control de acceso por eventos con impresión Brother QL****Sistema de control de acceso por eventos con impresión Brother QL**## � Compatibilidad Multiplataforma
-
-
+**Sistema de control de acceso por eventos con impresión Brother QL\*\***Sistema de control de acceso por eventos con impresión Brother QL\*\*## � Compatibilidad Multiplataforma
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)- ✅ **Windows 10/11** - Funcionalidad completa con impresión Brother QL
 
@@ -52,15 +44,9 @@ Sistema profesional de impresión de etiquetas QR desarrollado para **Agrinews**
 
 - **🎨 Diseño Corporativo**: Interfaz con branding AgrinewsSistema profesional de impresión de etiquetas QR desarrollado para **Agrinews**. Permite la gestión automatizada de eventos con validación de usuarios en tiempo real y generación de credenciales personalizadas.- Git (opcional, para clonar)
 
-
-
 ## 🚀 Compilación Multiplataforma- Drivers Brother QL (solo Windows)
 
-
-
 ### 🪟 Windows### 🎯 Características Principales
-
-
 
 ```batch### 🪟 Compilar para Windows
 
@@ -72,13 +58,9 @@ Sistema profesional de impresión de etiquetas QR desarrollado para **Agrinews**
 
 **Resultado:** `dist/SistemaEtiquetasAgriQR.exe`- **🎫 Gestión de Eventos**: Selección y control de eventos corporativos```batch
 
-
-
 ### 🍎 macOS- **📱 Códigos QR**: Generación automática con datos personalizados# Ejecutar el script de build
 
-
-
-```bash- **🖨️ Impresión Brother QL**: Compatible con toda la serie Brother QL./build_windows.bat
+````bash- **🖨️ Impresión Brother QL**: Compatible con toda la serie Brother QL./build_windows.bat
 
 # Dar permisos y ejecutar
 
@@ -112,19 +94,13 @@ chmod +x build_linux_appimage.sh
 
 ./build_linux_appimage.sh**Windows:**- Incluye todas las dependencias Python
 
-```
+````
 
 **Resultado:** Ejecutable nativo + AppImage portable```bash- Requiere drivers Brother QL para impresión
 
-
-
 ## 🖨️ Compatibilidad de Impresoras# Descargar y ejecutar
 
-
-
 ### ✅ Impresoras Soportadasdist/SistemaEtiquetasAgriQR.exe### 🍎 Compilar para macOS
-
-
 
 | Modelo | Windows | macOS | Linux | Estado |```
 
@@ -140,11 +116,7 @@ chmod +x build_linux_appimage.sh
 
 | Brother QL-820NWB | ✅ | ✅ | ✅ | Red + Bluetooth |```bashchmod +x build_macos.sh
 
-
-
 ### 🔧 Configuración de Impresión# Ejecutar desde código fuente
-
-
 
 - **Windows:** Usa `win32print` (drivers nativos requeridos)pip install -r requirements.txt# Ejecutar el script de build
 
@@ -154,7 +126,7 @@ python main.py./build_macos.sh
 
 ## 🗄️ Configuración de Base de Datos
 
-````
+`````
 
 El sistema conecta con dos bases MySQL:
 
@@ -168,7 +140,7 @@ DATABASE_USERS = "agribusi_acreditacion"
 
 # Clonar repositorio
 
-# Base de datos eventos - Eventos  
+# Base de datos eventos - Eventos
 
 DATABASE_EVENTS = "agribusi_3MpR3s4"git clone https://github.com/usuario/agriqr.git```bash
 
@@ -178,7 +150,7 @@ cd agriqrhdiutil create -volname 'Agrinews QR' -srcfolder dist -ov -format UDZO 
 
 ### Estrategias de Conexión
 
-````
+`````
 
 1. **PyMySQL** (Primera opción)
 
@@ -208,13 +180,9 @@ pip install -r requirements.txt**Distribución:**
 
 | **Empaquetado** | PyInstaller | Ejecutables |### ✅ Impresoras Soportadas```bash
 
-
-
 ## 📁 Estructura del Proyecto# Dar permisos al script
 
-
-
-```| Modelo | Windows | macOS | Linux | Estado |chmod +x build_linux.sh
+````| Modelo | Windows | macOS | Linux | Estado |chmod +x build_linux.sh
 
 agriqr-sistema-etiquetas/
 
@@ -244,7 +212,7 @@ agriqr-sistema-etiquetas/
 
 └── 🚫 .gitignore                   # Archivos ignorados### 🔧 Configuración de Impresión**Instalación manual:**
 
-```
+````
 
 **Windows:** Usa `win32print` (drivers nativos requeridos)```bash
 
@@ -270,19 +238,19 @@ El sistema conecta con dos bases MySQL:cp dist/SistemaEtiquetasAgriQR ~/bin/
 
 **macOS:**
 
-```bash# O instalar sistema-wide
+`````bash# O instalar sistema-wide
 
 # Descargar .app o .dmg desde Releases
 
 # Arrastrar a Applications/````pythonsudo cp dist/SistemaEtiquetasAgriQR /usr/local/bin/
 
-```
+`````
 
 # Base de datos principal - Usuarios```
 
 **Linux:**
 
-```bashDATABASE_USERS = "agribusi_acreditacion"
+````bashDATABASE_USERS = "agribusi_acreditacion"
 
 # Descargar AppImage desde Releases
 
@@ -324,7 +292,7 @@ python main.py
 
 ./build_[windows|macos|linux].sh3. **Manejo automático de charset** (UTF8/Latin1)```bash
 
-```
+````
 
 # 1. Crear entorno virtual
 
@@ -334,9 +302,9 @@ python main.py
 
 ### Requisitos de Desarrollo
 
-source venv_build/bin/activate  # Linux/Mac
+source venv_build/bin/activate # Linux/Mac
 
-```bash
+````bash
 
 # Entorno virtual### 🪟 Windows# o
 
@@ -384,9 +352,9 @@ chmod +x build_macos.sh# 4. El resultado estará en dist/
 
 pyinstaller ProgramaQR.spec./build_macos.sh```
 
-```
-
 ````
+
+````````
 
 ## 🐛 Solución de Problemas
 
@@ -552,7 +520,7 @@ Este es un proyecto corporativo privado para **Agrinews**. Para modificaciones c
 
 - **Desarrollador:** Sistema AgriQR### Windows
 
-- **Empresa:** Agrinews  
+- **Empresa:** Agrinews
 
 - **Versión:** 2.0 Multiplataforma```bash
 
@@ -656,7 +624,7 @@ pyinstaller ProgramaQR.spec
 
 **❌ Error MySQL:**### 🔒 Seguridad y Validación
 
-````
+````````
 
 Fix: Verificar conectividad y credenciales- Conexión segura a bases de datos MySQL remotas
 

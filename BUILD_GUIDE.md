@@ -5,7 +5,7 @@ Esta guía detalla cómo compilar AgriQR Sistema Etiquetas en las diferentes pla
 ## 📋 Índice
 
 - [🪟 Windows](#-windows)
-- [🍎 macOS](#-macos) 
+- [🍎 macOS](#-macos)
 - [🐧 Linux](#-linux)
 - [📦 AppImage](#-appimage-linux-portable)
 - [🔧 Resolución de Problemas](#-resolución-de-problemas)
@@ -113,17 +113,20 @@ open AgriQR-macOS.dmg
 ### Instalación de Dependencias
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt update
 sudo apt install python3 python3-pip python3-venv python3-tk python3-dev libusb-1.0-0-dev
 ```
 
 **CentOS/RHEL:**
+
 ```bash
 sudo yum install python3 python3-pip tkinter python3-devel libusb-devel
 ```
 
 **Fedora:**
+
 ```bash
 sudo dnf install python3 python3-pip python3-tkinter python3-devel libusb-devel
 ```
@@ -156,11 +159,13 @@ chmod +x build_linux.sh
 ### Opciones de Instalación
 
 **1. Ejecución directa:**
+
 ```bash
 ./dist/SistemaEtiquetasAgriQR
 ```
 
 **2. Instalación usuario:**
+
 ```bash
 cd dist
 ./install_agriqr.sh
@@ -168,6 +173,7 @@ cd dist
 ```
 
 **3. Instalación sistema:**
+
 ```bash
 sudo cp dist/SistemaEtiquetasAgriQR /usr/local/bin/agriqr
 ```
@@ -213,18 +219,21 @@ chmod +x build_linux_appimage.sh
 ### Uso del AppImage
 
 **Ejecución directa:**
+
 ```bash
 chmod +x AgriQR-Sistema-Etiquetas-v2.0-x86_64.AppImage
 ./AgriQR-Sistema-Etiquetas-v2.0-x86_64.AppImage
 ```
 
 **Instalación para usuario:**
+
 ```bash
 ./install_appimage.sh
 # Crea entrada en menú y comando 'agriqr'
 ```
 
 **Distribución:**
+
 - Solo compartir el archivo `.AppImage`
 - Compatible con cualquier distribución Linux x86_64
 - No requiere dependencias adicionales
@@ -238,12 +247,14 @@ chmod +x AgriQR-Sistema-Etiquetas-v2.0-x86_64.AppImage
 #### 🪟 Windows
 
 **Error: "Python no encontrado"**
+
 ```batch
 # Solución: Instalar Python desde python.org
 # Asegurar que esté en PATH
 ```
 
 **Error: "No se puede imprimir"**
+
 ```batch
 # Solución: Instalar drivers Brother QL oficiales
 # Verificar impresora en Panel de Control
@@ -252,12 +263,14 @@ chmod +x AgriQR-Sistema-Etiquetas-v2.0-x86_64.AppImage
 #### 🍎 macOS
 
 **Error: "Permission denied"**
+
 ```bash
 # Solución: Dar permisos al script
 chmod +x build_macos.sh
 ```
 
 **Error: "sips command not found"**
+
 ```bash
 # Solución: sips está incluido en macOS
 # Verificar Xcode Command Line Tools
@@ -265,6 +278,7 @@ xcode-select --install
 ```
 
 **Error: "Cannot create ICNS"**
+
 ```bash
 # Solución: El script continuará con PNG
 # ICNS es opcional pero recomendado
@@ -273,6 +287,7 @@ xcode-select --install
 #### 🐧 Linux
 
 **Error: "tkinter not found"**
+
 ```bash
 # Ubuntu/Debian
 sudo apt install python3-tk
@@ -284,13 +299,15 @@ sudo yum install tkinter
 sudo dnf install python3-tkinter
 ```
 
-**Error: "No module named '_tkinter'"**
+**Error: "No module named '\_tkinter'"**
+
 ```bash
 # Solución: Instalar python3-tk
 # Verificar con: python3 -c "import tkinter"
 ```
 
 **Error: "libusb not found"**
+
 ```bash
 # Ubuntu/Debian
 sudo apt install libusb-1.0-0-dev
@@ -317,11 +334,12 @@ Todos los scripts generan logs detallados durante la compilación:
 ### Verificación Post-Compilación
 
 **Verificar ejecutable:**
+
 ```bash
 # Windows
 dist\SistemaEtiquetasAgriQR.exe --version
 
-# macOS  
+# macOS
 dist/SistemaEtiquetasAgriQR.app/Contents/MacOS/SistemaEtiquetasAgriQR --version
 
 # Linux
@@ -359,16 +377,16 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v3
         with:
-          python-version: '3.8'
+          python-version: "3.8"
       - run: .\build_exe.bat
 
   build-macos:
-    runs-on: macos-latest  
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v3
         with:
-          python-version: '3.8'
+          python-version: "3.8"
       - run: |
           chmod +x build_macos.sh
           ./build_macos.sh
@@ -379,7 +397,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v3
         with:
-          python-version: '3.8'
+          python-version: "3.8"
       - run: |
           sudo apt update
           sudo apt install python3-tk python3-dev libusb-1.0-0-dev

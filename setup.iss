@@ -18,6 +18,7 @@ UninstallDisplayIcon={app}\SistemaEtiquetasAgriQR.exe
 Source: "dist\SistemaEtiquetasAgriQR.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "icono-agriQR.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "configurar_impresora.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Eventos_Etiquetas.csv"; DestDir: "{app}"; Flags: ignoreversion
 Source: "QL600_Driver.exe"; DestDir: "{tmp}"; Flags: ignoreversion
 Source: "QL700_Driver.exe"; DestDir: "{tmp}"; Flags: ignoreversion
 Source: "QL800_Driver.exe"; DestDir: "{tmp}"; Flags: ignoreversion
