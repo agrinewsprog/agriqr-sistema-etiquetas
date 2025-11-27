@@ -19,6 +19,8 @@ from PIL import ImageDraw, ImageFont
 import sys
 import os
 import platform
+import socket
+import threading
 
 # =====================================================
 # 🌍 DETECCIÓN DE SISTEMA OPERATIVO
@@ -966,6 +968,11 @@ class SistemaEtiquetasProfesional(tk.Tk):
         self.eventos_disponibles = []  # Lista de eventos disponibles para cargar
         self.csv_maestro_inicializado = False  # Si ya se estableció la estructura base
         
+        # Variables de estado de conexión a internet
+        self.tiene_internet = False
+        self.verificando_internet = False
+        self.estado_internet_cambio = False
+        
         # Crear interfaz profesional
         self.crear_interfaz_profesional()
         self.focus_entry()
@@ -1137,6 +1144,9 @@ class SistemaEtiquetasProfesional(tk.Tk):
         # Footer con controles administrativos
         self.crear_footer()
         
+        # Iniciar verificador de internet DESPUÉS de crear toda la interfaz
+        self.iniciar_verificador_internet()
+        
         # Actualizar configuración del scroll después de crear toda la interfaz
         self.after(100, self.actualizar_scroll_region)
 
@@ -1164,12 +1174,12 @@ class SistemaEtiquetasProfesional(tk.Tk):
                              style='Subtitulo.TLabel')
         subtitulo.pack(anchor='center', pady=(5, 0))
         
-        # Indicador de estado
+        # Indicador de estado de conexión a internet
         self.estado_frame = ttk.Frame(header_frame)
         self.estado_frame.pack(anchor='center', pady=10)
         
         self.estado_label = ttk.Label(self.estado_frame, 
-                                     text="🔴 Inicializando sistema...",
+                                     text="🔄 Verificando conexión...",
                                      style='Info.TLabel')
         self.estado_label.pack()
 
@@ -1550,6 +1560,69 @@ class SistemaEtiquetasProfesional(tk.Tk):
         else:
             self.log_message("No hay eventos seleccionados - Seleccione eventos para activar validación", "WARNING")
             
+    def verificar_internet(self):
+        """Verifica si hay conexión a internet intentando conectar a servidores DNS públicos."""
+        try:
+            # Intentar conectar a Google DNS (8.8.8.8) en el puerto 53
+            socket.create_connection(("8.8.8.8", 53), timeout=3)
+            return True
+        except OSError:
+            try:
+                # Fallback: intentar con Cloudflare DNS (1.1.1.1)
+                socket.create_connection(("1.1.1.1", 53), timeout=3)
+                return True
+            except OSError:
+                return False
+    
+    def actualizar_estado_internet(self):
+        """Actualiza el indicador visual del estado de internet."""
+        if self.tiene_internet:
+            self.estado_label.config(text="🟢 Internet: Conectado")
+        else:
+            self.estado_label.config(text="🔴 Internet: Sin conexión")
+    
+    def verificar_internet_periodico(self):
+        """Verifica la conexión a internet periódicamente en segundo plano."""
+        if self.verificando_internet:
+            return
+            
+        def _verificar():
+            self.verificando_internet = True
+            tiene_internet = self.verificar_internet()
+            
+            # Actualizar solo si cambió el estado
+            if tiene_internet != self.tiene_internet:
+                self.tiene_internet = tiene_internet
+                # Usar una bandera para actualizar desde el hilo principal
+                self.estado_internet_cambio = True
+            
+            self.verificando_internet = False
+        
+        # Ejecutar verificación en thread separado para no bloquear UI
+        thread = threading.Thread(target=_verificar, daemon=True)
+        thread.start()
+        
+        # Verificar si hay cambios pendientes y actualizar
+        self.verificar_cambios_internet()
+        
+        # Programar siguiente verificación en 10 segundos
+        self.after(10000, self.verificar_internet_periodico)
+    
+    def verificar_cambios_internet(self):
+        """Verifica y aplica cambios de estado de internet desde el hilo principal."""
+        if hasattr(self, 'estado_internet_cambio') and self.estado_internet_cambio:
+            self.estado_internet_cambio = False
+            self.actualizar_estado_internet()
+    
+    def iniciar_verificador_internet(self):
+        """Inicia el verificador periódico de internet."""
+        # Primera verificación inmediata y síncrona en el hilo principal
+        self.tiene_internet = self.verificar_internet()
+        self.actualizar_estado_internet()
+        
+        # Luego iniciar verificaciones periódicas en segundo plano
+        self.after(10000, self.verificar_internet_periodico)
+    
     def verificar_conexiones_inicial(self):
         """Verifica las conexiones iniciales y actualiza el estado."""
         try:
@@ -1570,14 +1643,11 @@ class SistemaEtiquetasProfesional(tk.Tk):
             with mysql.connector.connect(**config_eventos) as conn:
                 if conn.is_connected():
                     print("✅ Conexión de eventos establecida")
-                    self.estado_label.config(text="🟢 Sistema operativo - Conexiones activas")
                     return
                     
         except mysql.connector.Error as e:
-            self.estado_label.config(text="🔴 Error de conexión MySQL")
             self.log_message(f"Error de conexión MySQL: {str(e)}", "ERROR")
         except Exception as e:
-            self.estado_label.config(text="🔴 Error de conexión - Verificar configuración")
             self.log_message(f"Error de conexión: {str(e)}", "ERROR")
 
     def log_message(self, msg, tipo="INFO"):
@@ -1668,6 +1738,18 @@ class SistemaEtiquetasProfesional(tk.Tk):
     
     def seleccionar_eventos(self):
         """Abre ventana para seleccionar múltiples eventos activos."""
+        # Verificar internet si estamos en modo MySQL
+        if not self.modo_csv and not self.tiene_internet:
+            messagebox.showerror(
+                "Sin Conexión a Internet",
+                "No hay conexión a internet disponible.\n\n"
+                "No se pueden cargar eventos desde MySQL sin conexión.\n\n"
+                "Opciones:\n"
+                "• Conectarse a internet y reintentar\n"
+                "• Cambiar a modo CSV (Archivo → Modo CSV)"
+            )
+            return
+        
         # Decidir qué fuente de eventos usar
         if self.modo_csv:
             eventos = self.obtener_eventos_csv()
