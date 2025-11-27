@@ -296,6 +296,74 @@ def buscar_asistente(id_asistente):
         print(f"❌ Error al buscar asistente: {e}")
         return None
 
+def obtener_nombre_empresa(empresa_id):
+    """Obtiene el nombre de la empresa desde comp4n1 si es un ID numérico."""
+    if not empresa_id:
+        return ""
+    
+    # Si no es numérico, devolver tal cual (ya es un nombre)
+    try:
+        empresa_id_int = int(str(empresa_id).strip())
+    except (ValueError, AttributeError):
+        return str(empresa_id)
+    
+    # Es numérico, consultar base de datos
+    # Probar primero con DB_CONFIG_EVENTOS, luego con DB_CONFIG
+    for config_name, config in [("eventos", DB_CONFIG_EVENTOS), ("principal", DB_CONFIG)]:
+        try:
+            # Intentar con PyMySQL primero
+            try:
+                import pymysql
+                conn = pymysql.connect(
+                    host=config['host'],
+                    user=config['user'],
+                    password=config['password'],
+                    database=config['database'],
+                    connect_timeout=5
+                )
+                
+                cursor = conn.cursor()
+                cursor.execute("SELECT Nombre FROM comp4n1 WHERE id=%s", (empresa_id_int,))
+                resultado = cursor.fetchone()
+                
+                cursor.close()
+                conn.close()
+                
+                if resultado and resultado[0]:
+                    print(f"✅ Empresa {empresa_id} → {resultado[0]} (desde {config_name})")
+                    return resultado[0]
+                    
+            except ImportError:
+                # Fallback a mysql.connector
+                import mysql.connector
+                conn = mysql.connector.connect(
+                    host=config['host'],
+                    user=config['user'],
+                    password=config['password'],
+                    database=config['database'],
+                    charset='latin1'
+                )
+                
+                cursor = conn.cursor()
+                cursor.execute("SELECT Nombre FROM comp4n1 WHERE id=%s", (empresa_id_int,))
+                resultado = cursor.fetchone()
+                
+                cursor.close()
+                conn.close()
+                
+                if resultado and resultado[0]:
+                    print(f"✅ Empresa {empresa_id} → {resultado[0]} (desde {config_name})")
+                    return resultado[0]
+                    
+        except Exception as e:
+            print(f"⚠️ Error obteniendo empresa desde {config_name}: {e}")
+            continue
+    
+    # Si no se encontró en ninguna BD
+    print(f"❌ No se encontró nombre para empresa ID: {empresa_id}")
+    return str(empresa_id)
+
+
 def obtener_nombre_evento(evento_id, eventos_cargados=None):
     """Obtiene el nombre del evento desde los eventos cargados en memoria."""
     if not evento_id:
@@ -408,11 +476,15 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
     # Adaptar campos según el origen (MySQL o CSV)
     nombre = datos.get('Nombrecompleto') or datos.get('nombre', '')
     apellidos = datos.get('Apellidos') or datos.get('apellidos', '')  # Buscar Apellidos (mayúscula) primero
-    empresa = datos.get('Empresa') or datos.get('empresa', '')
+    empresa_id = datos.get('Empresa') or datos.get('empresa', '')
     dias = datos.get('Dia', '1')  # Valor por defecto para CSV
     id_usuario = datos.get('idUsuario') or datos.get('cedula', '')
     tipo_entrada = datos.get('Entrada') or datos.get('entrada', 'Congreso')  # Buscar Entrada (mayúscula) primero
     pagado = datos.get('Pagado') or datos.get('pagado', '0')  # Campo para verificar si está pagado
+    
+    # Convertir ID de empresa a nombre si es necesario
+    empresa = obtener_nombre_empresa(empresa_id)
+    print(f"🏢 DEBUG Empresa: ID='{empresa_id}' → Nombre='{empresa}'")
     
     # Construir nombre completo si viene por separado (CSV)
     if not nombre and datos.get('nombre'):
@@ -431,6 +503,13 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
         nombre_evento = "Evento no especificado"
 
     # ===============================================
+    # 🔤 NORMALIZAR NOMBRES PARA COMPARACIONES
+    # ===============================================
+    # Definir al inicio para que estén disponibles en toda la función
+    evento_lower = nombre_evento.lower() if nombre_evento else ''
+    tipo_lower = tipo_entrada.lower() if tipo_entrada else ''
+
+    # ===============================================
     # 🎨 SISTEMA DE COLORES SOLO PARA VISTA PREVIA
     # ===============================================
     
@@ -442,10 +521,6 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
         # VERSIÓN VISTA PREVIA: Con colores para identificación
         # Determinar color de fondo según el tipo de entrada y evento
         fondo_color = 'white'  # Color por defecto
-        
-        # Normalizar nombres para comparación
-        evento_lower = nombre_evento.lower() if nombre_evento else ''
-        tipo_lower = tipo_entrada.lower() if tipo_entrada else ''
         
         if 'expo' in tipo_lower:
             # REGLA ESPECIAL: TODAS las entradas EXPO → fondo negro
@@ -485,10 +560,6 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
     banda_height = 15  # Altura de la banda en píxeles
     
     if not version_impresion:  # Solo en vista previa, no en impresión
-        # Normalizar nombres para comparación
-        evento_lower = nombre_evento.lower() if nombre_evento else ''
-        tipo_lower = tipo_entrada.lower() if tipo_entrada else ''
-        
         if 'lpn congress' in evento_lower or 'lpn' in evento_lower:
             # LPN Congress - Bandas diferenciadas
             if 'expo' in tipo_lower:
@@ -532,7 +603,10 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
         return lineas
 
     # INDICADOR DE ENTRADA PAGADA - "P" en recuadro negro
-    if str(pagado) == '1':  # Si está pagado
+    # Solo mostrar para LPN y porciFORUM LATAM
+    es_evento_con_pagado = ('lpn' in evento_lower or 'porciforum latam' in evento_lower or 'porciforum mexico' in evento_lower)
+    
+    if str(pagado) == '1' and es_evento_con_pagado:  # Si está pagado Y es evento LPN/porciFORUM
         # Configuración del recuadro
         p_font_size = 40
         try:
@@ -570,7 +644,10 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
         y_pos += 110  # más separación
 
     # TIPO DE ENTRADA - formato según versión
-    if tipo_entrada:
+    # Solo mostrar para LPN Congress y porciFORUM LATAM
+    es_evento_con_tipos = ('lpn' in evento_lower or 'porciforum latam' in evento_lower or 'porciforum mexico' in evento_lower)
+    
+    if tipo_entrada and es_evento_con_tipos:
         if not version_impresion:
             # VERSIÓN VISTA PREVIA: Con colores y descripción de pulsera
             # Agregar descripción del tipo de pulsera
@@ -614,8 +691,9 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
             
             # Dibujar el texto en blanco encima del fondo negro
             draw.text((texto_x + 5, y_pos + 4), tipo_entrada, font=font_entrada_evento, fill='white')
-    
-    y_pos += 60  # espaciado reducido para fuente más pequeña
+        
+        y_pos += 60  # espaciado reducido para fuente más pequeña
+    # Si no es LPN o porciFORUM LATAM, no mostrar tipo de entrada y no agregar espacio
 
     # EVENTO
     for linea in wrap(f" - {nombre_evento}", font_entrada_evento, texto_w)[:2]:
@@ -646,13 +724,13 @@ def generar_etiqueta(datos, nombre_evento=None, version_impresion=False):
 
 
 
-def imprimir_etiqueta(img, sistema=None):
+def imprimir_etiqueta(img, impresora_manual=None):
     """Imprime en Brother QL en TODAS las plataformas"""
     try:
         # Intentar impresión Brother QL en cualquier sistema operativo
         if IS_WINDOWS:
-            # Windows: usar win32print (pasar sistema para usar impresora seleccionada)
-            return imprimir_etiqueta_windows(img, sistema)
+            # Windows: usar win32print
+            return imprimir_etiqueta_windows(img, impresora_manual)
         else:
             # Mac/Linux: usar brother_ql directamente
             return imprimir_etiqueta_brother_ql(img)
@@ -664,162 +742,33 @@ def imprimir_etiqueta(img, sistema=None):
         return guardar_etiqueta_archivo(img)
 
 def imprimir_etiqueta_brother_ql(img):
-    """Imprime usando diferentes estrategias para Linux/Mac"""
+    """Imprime usando brother_ql en Mac/Linux"""
     try:
-        print("🖨️ Intentando impresión en Linux...")
+        print("🖨️ Imprimiendo con brother_ql...")
         
-        # Estrategia 1: CUPS (Common Unix Printing System) - más confiable en Linux
-        if imprimir_con_cups(img):
-            return True
-        
-        # Estrategia 2: lp command directo
-        if imprimir_con_lp(img):
-            return True
-        
-        # Estrategia 3: brother_ql como último recurso (con manejo de errores)
-        try:
-            print("🔄 Intentando con brother_ql (puede fallar)...")
-            return imprimir_con_brother_ql_legacy(img)
-        except Exception as e:
-            print(f"brother_ql falló como esperado: {e}")
-            
-        # Si todo falla, guardar archivo (ya es lo que hacía antes)
-        raise Exception("Todas las estrategias de impresión fallaron. Guardando como archivo.")
-        
-    except Exception as e:
-        raise Exception(f"Error en impresión Linux: {str(e)}")
-
-def imprimir_con_cups(img):
-    """Intenta imprimir usando CUPS (sistema de impresión estándar Linux)"""
-    try:
-        import subprocess
-        import tempfile
-        import os
-        
-        # Crear archivo temporal
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-            tmp_path = tmp_file.name
-            
-        # Guardar imagen en archivo temporal
-        img.save(tmp_path, "PNG", dpi=(300, 300))
-        
-        # Buscar impresoras Brother QL disponibles
-        try:
-            result = subprocess.run(['lpstat', '-p'], capture_output=True, text=True, timeout=5)
-            impresoras_disponibles = result.stdout
-            
-            # Buscar impresoras Brother
-            impresoras_brother = []
-            for linea in impresoras_disponibles.split('\n'):
-                if 'Brother' in linea and ('QL-' in linea or 'ql-' in linea):
-                    # Extraer nombre de impresora
-                    partes = linea.split()
-                    if len(partes) >= 2:
-                        impresoras_brother.append(partes[1])
-            
-            if not impresoras_brother:
-                print("🔍 No se encontraron impresoras Brother QL en CUPS")
-                return False
-            
-            # Intentar imprimir en la primera impresora Brother encontrada
-            impresora = impresoras_brother[0]
-            print(f"🖨️ Imprimiendo en: {impresora}")
-            
-            # Comando lp con parámetros específicos para etiquetas
-            cmd = [
-                'lp',
-                '-d', impresora,
-                '-o', 'media=Custom.62x29mm',  # Tamaño de etiqueta Brother
-                '-o', 'fit-to-page',
-                '-o', 'orientation-requested=3',  # Paisaje
-                tmp_path
-            ]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            
-            # Limpiar archivo temporal
-            try:
-                os.unlink(tmp_path)
-            except:
-                pass
-            
-            if result.returncode == 0:
-                print("✅ ¡Impresión enviada exitosamente con CUPS!")
-                return True
-            else:
-                print(f"❌ Error CUPS: {result.stderr}")
-                return False
-                
-        except subprocess.TimeoutExpired:
-            print("⏱️ Timeout ejecutando comandos CUPS")
-            return False
-        except Exception as e:
-            print(f"❌ Error ejecutando CUPS: {e}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error configurando CUPS: {e}")
-        return False
-
-def imprimir_con_lp(img):
-    """Intenta imprimir usando comando lp directo"""
-    try:
-        import subprocess
-        import tempfile
-        import os
-        
-        # Crear archivo temporal
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-            tmp_path = tmp_file.name
-            
-        # Guardar imagen optimizada para impresión
-        img.save(tmp_path, "PNG", dpi=(300, 300), optimize=True)
-        
-        # Intentar imprimir con lp genérico
-        try:
-            cmd = ['lp', '-o', 'fit-to-page', tmp_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            
-            # Limpiar archivo temporal
-            try:
-                os.unlink(tmp_path)
-            except:
-                pass
-            
-            if result.returncode == 0:
-                print("✅ ¡Impresión enviada exitosamente con lp!")
-                return True
-            else:
-                print(f"❌ Error lp: {result.stderr}")
-                return False
-                
-        except subprocess.TimeoutExpired:
-            print("⏱️ Timeout ejecutando lp")
-            return False
-        except Exception as e:
-            print(f"❌ Error ejecutando lp: {e}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error configurando lp: {e}")
-        return False
-
-def imprimir_con_brother_ql_legacy(img):
-    """Método brother_ql original (puede fallar con Pillow nuevo)"""
-    try:
+        # Intentar usar brother_ql
         from brother_ql import BrotherQLRaster, create_label
         from brother_ql.backends import backend_factory, guess_backend
         
         # Detectar impresora Brother QL
         backend = guess_backend("usb://")
         if not backend:
-            return False
+            # Intentar con otros backends
+            for backend_name in ['pyusb', 'linux_kernel']:
+                try:
+                    backend = backend_factory(backend_name)
+                    break
+                except:
+                    continue
+        
+        if not backend:
+            raise Exception("No se encontró impresora Brother QL conectada")
         
         # Crear raster
-        qlr = BrotherQLRaster('QL-700')
+        qlr = BrotherQLRaster('QL-700')  # o QL-600, QL-800
         
         # Convertir imagen a formato Brother QL
-        instructions = create_label(qlr, img, '62')
+        instructions = create_label(qlr, img, '62')  # etiqueta de 62mm
         
         # Enviar a impresora
         backend.write(instructions)
@@ -828,73 +777,48 @@ def imprimir_con_brother_ql_legacy(img):
         print("✅ ¡Impresión enviada exitosamente con brother_ql!")
         return True
         
+    except ImportError:
+        raise Exception("brother_ql no instalado. Instalar con: pip install brother_ql")
     except Exception as e:
-        print(f"brother_ql legacy falló: {e}")
-        return False
+        raise Exception(f"Error imprimiendo con brother_ql: {str(e)}")
 
-def imprimir_etiqueta_windows(img, sistema=None):
-    """Imprime usando win32print (método Windows nativo más confiable)."""
+def imprimir_etiqueta_windows(img, impresora_manual=None):
+    """Imprime usando win32print (método Windows nativo más confiable).
+    
+    Args:
+        img: Imagen PIL a imprimir
+        impresora_manual: Nombre de impresora seleccionada manualmente (opcional)
+    """
     try:
         import win32print
         import win32ui
         from PIL import ImageWin
         import tempfile
         import os
-        import time
         
-        # VERIFICAR SI HAY UNA IMPRESORA SELECCIONADA MANUALMENTE
-        impresora_manual = None
-        if sistema and hasattr(sistema, 'impresora_seleccionada') and sistema.impresora_seleccionada:
-            impresora_manual = sistema.impresora_seleccionada
-            print(f"🎯 Usando impresora seleccionada manualmente: {impresora_manual}")
+        # 🔄 REFRESCAR lista de impresoras cada vez (evita caché)
+        # Flag 6 = PRINTER_ENUM_LOCAL (2) | PRINTER_ENUM_CONNECTIONS (4)
+        # Esto fuerza a Windows a refrescar la lista completa de impresoras
+        print("🔍 Escaneando impresoras disponibles...")
+        impresoras = []
+        for printer_info in win32print.EnumPrinters(6):  # 6 = LOCAL + NETWORK
+            nombre = printer_info[2]
+            if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
+                impresoras.append(nombre)
+                print(f"   ✅ Encontrada: {nombre}")
         
-        # Si no hay selección manual, buscar automáticamente
-        if not impresora_manual:
-            print("🔄 Actualizando lista de impresoras...")
-            time.sleep(0.1)  # Pequeña pausa para asegurar sincronización
-            
-            # Buscar impresoras Brother instaladas DINÁMICAMENTE
-            impresoras = []
-            try:
-                # Usar flag PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS (6)
-                # para forzar actualización completa
-                for printer_info in win32print.EnumPrinters(6):
-                    nombre = printer_info[2]
-                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
-                        impresoras.append(nombre)
-                        print(f"   📌 Encontrada: {nombre}")
-            except Exception as e:
-                print(f"⚠️ Error enumerando impresoras con flag 6, usando flag 2: {e}")
-                # Fallback al método original
-                for printer_info in win32print.EnumPrinters(2):
-                    nombre = printer_info[2]
-                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
-                        impresoras.append(nombre)
-            
-            if not impresoras:
-                raise Exception("No se encontró ninguna impresora Brother QL instalada en Windows. Instala el driver oficial.")
-            
-            # Si hay múltiples impresoras, usar la predeterminada del sistema o la primera
-            nombre_impresora = None
-            
-            # Intentar obtener la impresora predeterminada del sistema
-            try:
-                impresora_predeterminada = win32print.GetDefaultPrinter()
-                if any(imp in impresora_predeterminada for imp in impresoras):
-                    nombre_impresora = impresora_predeterminada
-                    print(f"✅ Usando impresora predeterminada: {nombre_impresora}")
-            except:
-                pass
-            
-            # Si no hay predeterminada o no es Brother, usar la primera encontrada
-            if not nombre_impresora:
-                nombre_impresora = impresoras[0]
-                print(f"✅ Usando primera impresora Brother encontrada: {nombre_impresora}")
-        else:
-            # Usar la impresora seleccionada manualmente
+        if not impresoras:
+            raise Exception("No se encontró ninguna impresora Brother QL instalada en Windows. Instala el driver oficial.")
+        
+        # Usar impresora manual si se especificó, sino la primera encontrada
+        if impresora_manual and impresora_manual in impresoras:
             nombre_impresora = impresora_manual
+            print(f"🎯 Usando impresora seleccionada: {nombre_impresora}")
+        else:
+            nombre_impresora = impresoras[0]
+            print(f"✅ Usando impresora por defecto: {nombre_impresora}")
         
-        # Crear contexto de impresión NUEVO cada vez
+        # 📤 Crear NUEVO contexto de impresión (evita caché de DC)
         hDC = win32ui.CreateDC()
         hDC.CreatePrinterDC(nombre_impresora)
         
@@ -928,13 +852,15 @@ def imprimir_etiqueta_windows(img, sistema=None):
         
         hDC.EndPage()
         hDC.EndDoc()
+        hDC.DeleteDC()  # ✨ Liberar contexto (evita caché)
         
-        print("¡Impresión enviada exitosamente!")
+        print("✅ ¡Impresión enviada exitosamente!")
+        return True
         
     except ImportError:
         raise Exception("Instala pywin32: pip install pywin32")
     except Exception as e:
-        print(f"Error en impresión: {e}")
+        print(f"❌ Error en impresión: {e}")
         raise Exception(f"Error al imprimir: {str(e)}")
 
 def guardar_etiqueta_archivo(img):
@@ -950,49 +876,13 @@ def guardar_etiqueta_archivo(img):
         filename = f"etiqueta_qr_{timestamp}.png"
         filepath = os.path.join(etiquetas_dir, filename)
         
-        # Guardar imagen con alta calidad
-        img.save(filepath, "PNG", dpi=(300, 300), optimize=True)
+        # Guardar imagen
+        img.save(filepath, "PNG", dpi=(300, 300))
         
         print(f"✅ Etiqueta 'impresa' (guardada) en: {filepath}")
         
-        # Crear también una versión PDF si es posible
-        try:
-            pdf_path = filepath.replace('.png', '.pdf')
-            img_rgb = img.convert('RGB')
-            img_rgb.save(pdf_path, "PDF", dpi=(300, 300))
-            print(f"📄 También guardada como PDF: {pdf_path}")
-        except Exception as pdf_error:
-            print(f"⚠️ No se pudo crear PDF: {pdf_error}")
-        
-        # Crear archivo de instrucciones si no existe
-        instrucciones_path = os.path.join(etiquetas_dir, "INSTRUCCIONES_IMPRESION.txt")
-        if not os.path.exists(instrucciones_path):
-            with open(instrucciones_path, 'w', encoding='utf-8') as f:
-                f.write("""🖨️ INSTRUCCIONES PARA IMPRIMIR ETIQUETAS EN LINUX
-
-Las etiquetas se guardan aquí porque la impresión directa en Linux puede requerir configuración adicional.
-
-PARA IMPRIMIR:
-1. Conecta tu impresora Brother QL (QL-600, QL-700, QL-800)
-2. Instala el driver oficial de Brother si no lo has hecho
-3. Abre el archivo PNG o PDF con el visor de imágenes
-4. Imprime con estas configuraciones:
-   - Tamaño: 62mm x 29mm (o tamaño personalizado)
-   - Orientación: Horizontal (paisaje)
-   - Ajustar a página: SÍ
-   - Sin márgenes
-
-CONFIGURACIÓN CUPS (OPCIONAL):
-Para impresión automática, configura tu impresora en CUPS:
-1. Abre http://localhost:631 en tu navegador
-2. Añade tu impresora Brother QL
-3. Configura el tamaño de papel a 62x29mm
-
-ALTERNATIVA:
-Usa el comando: lp -d NombreImpresora -o fit-to-page archivo.png
-""")
-            print(f"📝 Instrucciones creadas en: {instrucciones_path}")
-        
+        # EN MODO AUTO: NO mostrar popup, solo log silencioso
+        # EN MODO MANUAL: Mostrar popup informativo
         return filepath
         
     except Exception as e:
@@ -1449,13 +1339,13 @@ class SistemaEtiquetasProfesional(tk.Tk):
         self.preview_lbl.pack(expand=True)
         
         # ===============================================
-        # 🎨 PANEL DE INDICADORES DE PULSERAS (SOLO LPN Y PORCIFORUM)
+        # 🎨 PANEL DE INDICADORES DE PULSERAS
         # ===============================================
         
         # Container para los indicadores de pulseras - MÁS COMPACTO
         # GUARDAMOS LA REFERENCIA para poder mostrar/ocultar según el evento
         self.pulseras_container = tk.Frame(main_container, bg=ColoresTema.WHITE, width=180)
-        # NO lo empaquetamos aquí, se mostrará solo para eventos LPN y PorciForum
+        self.pulseras_container.pack(side='left', fill='y', padx=(10, 0))
         self.pulseras_container.pack_propagate(False)  # Mantener ancho fijo
         
         # Título del panel de pulseras
@@ -4063,8 +3953,6 @@ class SistemaEtiquetasProfesional(tk.Tk):
             # Ocultar indicadores activos si no hay datos
             self.indicador_activo.pack_forget()
             self.indicador_mochila_activo.pack_forget()
-            # Ocultar el panel completo si no hay datos
-            self.pulseras_container.pack_forget()
             return
         
         # Obtener datos
@@ -4089,26 +3977,19 @@ class SistemaEtiquetasProfesional(tk.Tk):
         
         if not es_evento_con_pulseras:
             # ❌ EVENTO SIN PULSERAS: Ocultar todo el panel
-            self.pulseras_container.pack_forget()
+            if hasattr(self, 'pulseras_container'):
+                self.pulseras_container.pack_forget()
             print(f"ℹ️ Evento '{nombre_evento}' sin sistema de pulseras - Panel oculto")
             return
         
         # ✅ EVENTO CON PULSERAS: Mostrar el panel
-        # Verificar si ya está visible, si no, mostrarlo
-        if not self.pulseras_container.winfo_ismapped():
-            self.pulseras_container.pack(side='left', fill='y', padx=(10, 0))
-            print(f"✅ Evento '{nombre_evento}' con sistema de pulseras - Panel visible")
+        if hasattr(self, 'pulseras_container'):
+            if not self.pulseras_container.winfo_ismapped():
+                self.pulseras_container.pack(side='left', fill='y', padx=(10, 0))
+                print(f"✅ Evento '{nombre_evento}' con sistema de pulseras - Panel visible")
         
         # Continuar con la lógica normal de actualización de indicadores
         tipo_lower = tipo_entrada.lower() if tipo_entrada else ''
-        
-        print("=" * 80)
-        print(f"🔍 DEBUG PULSERAS:")
-        print(f"   - Usuario: {self.datos_actual.get('Nombrecompleto', 'N/A')}")
-        print(f"   - Evento (original): '{nombre_evento}'")
-        print(f"   - Evento (lower): '{evento_lower}'")
-        print(f"   - Tipo entrada (original): '{tipo_entrada}'")
-        print(f"   - Tipo entrada (lower): '{tipo_lower}'")
         
         # Resetear todos los indicadores de pulseras
         self.pulsera_naranja.configure(relief='raised', borderwidth=2)
@@ -4244,120 +4125,132 @@ class SistemaEtiquetasProfesional(tk.Tk):
         print(f"   - Pulsera activa: {pulsera_activa}")
         print(f"   - Mochila activa: {mochila_activa}")
 
+    def on_print(self):
+        self.imprimir_y_log()
+        self.btn_print['state'] = 'disabled'
+
     def seleccionar_impresora(self):
-        """Permite seleccionar manualmente la impresora Brother a usar."""
+        """Permite seleccionar manualmente la impresora Brother QL a usar."""
         try:
             import win32print
+            from tkinter import messagebox
             
-            # Actualizar lista de impresoras disponibles
+            # Escanear impresoras disponibles con refresh forzado
             print("🔄 Escaneando impresoras disponibles...")
-            impresoras_brother = []
+            impresoras = []
+            for printer_info in win32print.EnumPrinters(6):  # 6 = LOCAL + NETWORK
+                nombre = printer_info[2]
+                if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
+                    impresoras.append(nombre)
             
-            try:
-                # Usar flag 6 para forzar actualización completa
-                for printer_info in win32print.EnumPrinters(6):
-                    nombre = printer_info[2]
-                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
-                        impresoras_brother.append(nombre)
-            except:
-                # Fallback
-                for printer_info in win32print.EnumPrinters(2):
-                    nombre = printer_info[2]
-                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
-                        impresoras_brother.append(nombre)
-            
-            if not impresoras_brother:
-                messagebox.showwarning("Sin impresoras", 
-                    "No se encontraron impresoras Brother QL instaladas.\n\n"
-                    "Asegúrate de que el driver de la impresora esté instalado correctamente.")
+            if not impresoras:
+                messagebox.showerror("Sin impresoras", 
+                    "No se encontraron impresoras Brother QL.\n\n"
+                    "Verifica que:\n"
+                    "• La impresora esté encendida\n"
+                    "• El driver oficial Brother esté instalado\n"
+                    "• La impresora aparezca en 'Dispositivos e impresoras' de Windows")
                 return
             
             # Crear ventana de selección
             ventana = tk.Toplevel(self)
-            ventana.title("🖨️ Seleccionar Impresora Brother QL")
+            ventana.title("🖨️ Seleccionar Impresora")
             ventana.geometry("500x400")
             ventana.transient(self)
             ventana.grab_set()
             
-            # Centrar ventana
-            ventana.geometry("+%d+%d" % (self.winfo_rootx() + 100, self.winfo_rooty() + 100))
-            
-            # Frame principal
-            main_frame = ttk.Frame(ventana, padding=20)
-            main_frame.pack(fill='both', expand=True)
-            
             # Título
-            titulo = ttk.Label(main_frame,
-                              text="🖨️ Seleccione la impresora a usar",
-                              font=('Segoe UI', 14, 'bold'))
-            titulo.pack(pady=(0, 20))
+            titulo = tk.Label(ventana, 
+                            text="Selecciona la impresora Brother QL a usar:",
+                            font=('Segoe UI', 12, 'bold'),
+                            pady=15)
+            titulo.pack()
             
-            # Info
-            info_text = f"Se encontraron {len(impresoras_brother)} impresora(s) Brother QL:\n"
-            info_label = ttk.Label(main_frame, text=info_text, font=('Segoe UI', 10))
-            info_label.pack(pady=(0, 10))
+            # Lista de impresoras
+            frame_lista = tk.Frame(ventana)
+            frame_lista.pack(fill='both', expand=True, padx=20, pady=10)
             
-            # Lista de impresoras con radio buttons
-            seleccion_var = tk.StringVar()
+            scrollbar = tk.Scrollbar(frame_lista)
+            scrollbar.pack(side='right', fill='y')
             
-            # Marcar la impresora actual si existe
-            if hasattr(self, 'impresora_seleccionada') and self.impresora_seleccionada:
-                seleccion_var.set(self.impresora_seleccionada)
+            lista = tk.Listbox(frame_lista, 
+                             yscrollcommand=scrollbar.set,
+                             font=('Segoe UI', 10),
+                             selectmode='single',
+                             height=10)
+            lista.pack(side='left', fill='both', expand=True)
+            scrollbar.config(command=lista.yview)
+            
+            # Agregar impresoras a la lista
+            for imp in impresoras:
+                lista.insert(tk.END, imp)
+            
+            # Seleccionar la primera por defecto
+            if self.impresora_seleccionada and self.impresora_seleccionada in impresoras:
+                idx = impresoras.index(self.impresora_seleccionada)
+                lista.selection_set(idx)
             else:
-                # Por defecto, seleccionar la primera
-                seleccion_var.set(impresoras_brother[0])
-            
-            # Frame con scroll para la lista
-            lista_frame = ttk.LabelFrame(main_frame, text="Impresoras disponibles", padding=10)
-            lista_frame.pack(fill='both', expand=True, pady=(0, 15))
-            
-            for impresora in impresoras_brother:
-                # Verificar si es la predeterminada del sistema
-                es_predeterminada = False
-                try:
-                    if impresora == win32print.GetDefaultPrinter():
-                        es_predeterminada = True
-                except:
-                    pass
-                
-                texto = impresora
-                if es_predeterminada:
-                    texto += " ⭐ (Predeterminada del sistema)"
-                
-                radio = ttk.Radiobutton(lista_frame, 
-                                       text=texto, 
-                                       variable=seleccion_var, 
-                                       value=impresora)
-                radio.pack(anchor='w', pady=5)
+                lista.selection_set(0)
             
             # Botones
-            botones_frame = ttk.Frame(main_frame)
-            botones_frame.pack(fill='x')
+            frame_botones = tk.Frame(ventana)
+            frame_botones.pack(pady=15)
             
             def confirmar():
-                self.impresora_seleccionada = seleccion_var.get()
-                print(f"✅ Impresora seleccionada: {self.impresora_seleccionada}")
-                self.log_message(f"Impresora cambiada a: {self.impresora_seleccionada}", "SUCCESS")
-                messagebox.showinfo("Impresora Actualizada", 
-                    f"✅ Impresora configurada correctamente:\n\n{self.impresora_seleccionada}\n\n"
-                    "Las próximas etiquetas se imprimirán en esta impresora.")
-                ventana.destroy()
+                seleccion = lista.curselection()
+                if seleccion:
+                    self.impresora_seleccionada = impresoras[seleccion[0]]
+                    messagebox.showinfo("✅ Impresora seleccionada", 
+                        f"Impresora configurada:\n\n{self.impresora_seleccionada}")
+                    ventana.destroy()
             
             def refrescar():
-                # Cerrar y volver a abrir para refrescar la lista
-                ventana.destroy()
-                self.seleccionar_impresora()
+                # Refrescar lista de impresoras
+                lista.delete(0, tk.END)
+                impresoras.clear()
+                print("🔄 Refrescando lista de impresoras...")
+                for printer_info in win32print.EnumPrinters(6):
+                    nombre = printer_info[2]
+                    if 'Brother' in nombre and ('QL-600' in nombre or 'QL-700' in nombre or 'QL-800' in nombre):
+                        impresoras.append(nombre)
+                        lista.insert(tk.END, nombre)
+                if impresoras:
+                    lista.selection_set(0)
+                else:
+                    messagebox.showwarning("Sin impresoras", "No se encontraron impresoras Brother QL")
             
-            ttk.Button(botones_frame, text="🔄 Refrescar Lista", command=refrescar).pack(side='left', padx=(0, 10))
-            ttk.Button(botones_frame, text="✅ Confirmar", command=confirmar).pack(side='left', padx=(0, 10))
-            ttk.Button(botones_frame, text="❌ Cancelar", command=ventana.destroy).pack(side='left')
+            btn_confirmar = tk.Button(frame_botones, 
+                                    text="✅ Confirmar",
+                                    command=confirmar,
+                                    bg='#28a745',
+                                    fg='white',
+                                    font=('Segoe UI', 10, 'bold'),
+                                    padx=20,
+                                    pady=5)
+            btn_confirmar.pack(side='left', padx=5)
+            
+            btn_refrescar = tk.Button(frame_botones,
+                                     text="🔄 Refrescar",
+                                     command=refrescar,
+                                     bg='#007bff',
+                                     fg='white',
+                                     font=('Segoe UI', 10, 'bold'),
+                                     padx=20,
+                                     pady=5)
+            btn_refrescar.pack(side='left', padx=5)
+            
+            btn_cancelar = tk.Button(frame_botones,
+                                   text="❌ Cancelar",
+                                   command=ventana.destroy,
+                                   bg='#dc3545',
+                                   fg='white',
+                                   font=('Segoe UI', 10, 'bold'),
+                                   padx=20,
+                                   pady=5)
+            btn_cancelar.pack(side='left', padx=5)
             
         except Exception as e:
             messagebox.showerror("Error", f"Error al listar impresoras:\n{str(e)}")
-
-    def on_print(self):
-        self.imprimir_y_log()
-        self.btn_print['state'] = 'disabled'
 
     def imprimir_y_log(self):
         # Marcar comida en la base de datos o CSV si estamos en modo manual
@@ -4368,7 +4261,9 @@ class SistemaEtiquetasProfesional(tk.Tk):
             else:
                 self.log_message(f"Error al registrar comida para usuario {id_usuario}", "ERROR")
         
-        imprimir_etiqueta(self.img_etiqueta, sistema=self)
+        # Usar impresora seleccionada manualmente si existe
+        impresora = getattr(self, 'impresora_seleccionada', None)
+        imprimir_etiqueta(self.img_etiqueta, impresora)
         log_impresion(self.datos_actual)
         self.add_log(self.datos_actual)
 
@@ -4489,7 +4384,7 @@ class SistemaEtiquetasProfesional(tk.Tk):
                     print(f"⚠️ Error al marcar comida en MySQL: {e}")
             
             # Imprimir etiqueta
-            imprimir_etiqueta(self.img_etiqueta, sistema=self)
+            imprimir_etiqueta(self.img_etiqueta)
             
             # Intentar guardar log con manejo de errores
             try:
